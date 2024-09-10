@@ -8,16 +8,18 @@ use clap::{Parser, ValueEnum};
 #[command(author, version, about)]
 struct Cli {
     /// Timestamp provided in one of the available `format`s.
-    #[arg(short, long)]
-    timestamp: String,
+    ///
+    /// If not provided, the current system time will be used.
+    #[arg()]
+    timestamp: Option<String>,
 
     /// The format that your `timestamp` is provided in.
-    #[arg(long, default_value_t = Format::default())]
+    #[arg(short, long, default_value_t = Format::default())]
     format: Format,
 
-    /// Include time information about the current timestamp.
+    /// Include time information about the current system time.
     #[arg(short, long)]
-    include_now: bool,
+    now: bool,
 }
 
 #[derive(ValueEnum, Default, Clone, Debug)]
@@ -49,19 +51,19 @@ impl Display for Format {
 
 #[derive(Debug)]
 pub struct Times {
-    pub local_time: DateTime<Local>,
+    pub local: DateTime<Local>,
     pub utc: DateTime<Utc>,
-    pub unix_time_s: i64,
-    pub unix_time_ms: i64,
+    pub unix_s: i64,
+    pub unix_ms: i64,
 }
 
 impl Times {
     pub fn new(dt: DateTime<Utc>) -> Self {
         Self {
-            local_time: DateTime::from(dt),
+            local: DateTime::from(dt),
             utc: dt,
-            unix_time_s: dt.timestamp(),
-            unix_time_ms: dt.timestamp_millis(),
+            unix_s: dt.timestamp(),
+            unix_ms: dt.timestamp_millis(),
         }
     }
 }
@@ -69,10 +71,9 @@ impl Times {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let in_time = cli.timestamp.parse::<i64>().expect("input is a valid i64");
-
-    let provided =
-        match cli.format {
+    if let Some(timestamp) = &cli.timestamp {
+        let in_time = timestamp.parse::<i64>().expect("input is a valid i64");
+        let in_time = match cli.format {
             Format::seconds => {
                 DateTime::<Utc>::from_timestamp(in_time, 0).expect("input should be a valid time")
             }
@@ -83,17 +84,12 @@ fn main() -> Result<()> {
             Format::nanoseconds => DateTime::<Utc>::from_timestamp_nanos(in_time),
         };
 
-    let provided_times = Times::new(provided);
-
-    if cli.include_now {
-        let sys_utc = chrono::offset::Utc::now();
-
-        let times = Times::new(sys_utc);
-
-        println!("now    : {times:#?}");
+        println!("in_time: {:#?}", Times::new(in_time));
     }
 
-    println!("provied: {provided_times:#?}");
+    if cli.now {
+        println!("now: {:#?}", Times::new(chrono::offset::Utc::now()));
+    }
 
     Ok(())
 }
