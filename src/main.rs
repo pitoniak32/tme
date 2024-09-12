@@ -3,20 +3,21 @@ use std::fmt::Display;
 use anyhow::Result;
 use chrono::{DateTime, Local, Utc};
 use clap::{Parser, ValueEnum};
+use clap_verbosity_flag::Verbosity;
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(author, version, about)]
 struct Cli {
     /// Timestamp provided in one of the available `format`s.
-    /// 
+    ///
     /// you can provide the values in a csv list.
     /// They will all need to be in the same format
     ///
     /// `1725932348,1725932348,1725932348`
     ///
     /// If not provided, the current system time will be used.
-    #[arg()]
-    timestamp: Option<String>,
+    #[arg(value_delimiter = ',')]
+    timestamp: Option<Vec<String>>,
 
     /// The format that your `timestamp` is provided in.
     #[arg(short, long, default_value_t = Format::default())]
@@ -25,6 +26,9 @@ struct Cli {
     /// Include time information about the current system time.
     #[arg(short, long)]
     now: bool,
+
+    #[clap(flatten)]
+    pub verbosity: Verbosity,
 }
 
 #[derive(ValueEnum, Default, Clone, Debug)]
@@ -76,29 +80,45 @@ impl Times {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    if let Some(timestamp) = &cli.timestamp {
-        timestamp.split(",").filter_map(|val| {
-            if val.trim().is_empty() { return None }
-            if let Some(val_in) = val.parse::<i64>().ok() {
-                return Some(val_in)
-            } else {
-                println!("Could not convert \"{val}\" into i64");
-                return None
-            }
-        }).for_each(|ts| {
-            let in_time = match cli.format {
-                Format::seconds => {
-                    DateTime::<Utc>::from_timestamp(ts, 0).expect("input should be a valid time")
-                }
-                Format::milliseconds => DateTime::<Utc>::from_timestamp_millis(ts)
-                    .expect("input should be a valid time"),
-                Format::microseconds => DateTime::<Utc>::from_timestamp_micros(ts)
-                    .expect("input should be a valid time"),
-                Format::nanoseconds => DateTime::<Utc>::from_timestamp_nanos(ts),
-            };
+    env_logger::builder()
+        .filter_level(cli.verbosity.log_level_filter())
+        .init();
 
-            println!("({ts} {sym}): {time:#?}", sym = cli.format.symbol(), time = Times::new(in_time));
-        })
+    log::debug!("{cli:#?}");
+
+    if let Some(timestamps) = &cli.timestamp {
+        timestamps
+            .iter()
+            .filter_map(|val| {
+                log::trace!("filter_mapping: {val}");
+                if val.trim().is_empty() {
+                    return None;
+                }
+                match val.parse::<i64>() {
+                    Ok(parsed) => return Some(parsed),
+                    Err(err) => {
+                        log::error!("Could not convert \"{val}\" into i64: {err:?}");
+                        return None;
+                    }
+                }
+            })
+            .for_each(|ts| {
+                let in_time = match cli.format {
+                    Format::seconds => DateTime::<Utc>::from_timestamp(ts, 0)
+                        .expect("input should be a valid time"),
+                    Format::milliseconds => DateTime::<Utc>::from_timestamp_millis(ts)
+                        .expect("input should be a valid time"),
+                    Format::microseconds => DateTime::<Utc>::from_timestamp_micros(ts)
+                        .expect("input should be a valid time"),
+                    Format::nanoseconds => DateTime::<Utc>::from_timestamp_nanos(ts),
+                };
+
+                println!(
+                    "({ts} {sym}): {time:#?}",
+                    sym = cli.format.symbol(),
+                    time = Times::new(in_time)
+                );
+            })
     }
 
     if cli.now {
