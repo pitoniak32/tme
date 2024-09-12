@@ -8,6 +8,11 @@ use clap::{Parser, ValueEnum};
 #[command(author, version, about)]
 struct Cli {
     /// Timestamp provided in one of the available `format`s.
+    /// 
+    /// you can provide the values in a csv list.
+    /// They will all need to be in the same format
+    ///
+    /// `1725932348,1725932348,1725932348`
     ///
     /// If not provided, the current system time will be used.
     #[arg()]
@@ -33,7 +38,7 @@ enum Format {
 }
 
 impl Format {
-    fn _symbol(&self) -> String {
+    fn symbol(&self) -> String {
         match self {
             Format::seconds => "s".to_string(),
             Format::milliseconds => "ms".to_string(),
@@ -72,23 +77,32 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     if let Some(timestamp) = &cli.timestamp {
-        let in_time = timestamp.parse::<i64>().expect("input is a valid i64");
-        let in_time = match cli.format {
-            Format::seconds => {
-                DateTime::<Utc>::from_timestamp(in_time, 0).expect("input should be a valid time")
+        timestamp.split(",").filter_map(|val| {
+            if val.trim().is_empty() { return None }
+            if let Some(val_in) = val.parse::<i64>().ok() {
+                return Some(val_in)
+            } else {
+                println!("Could not convert \"{val}\" into i64");
+                return None
             }
-            Format::milliseconds => DateTime::<Utc>::from_timestamp_millis(in_time)
-                .expect("input should be a valid time"),
-            Format::microseconds => DateTime::<Utc>::from_timestamp_micros(in_time)
-                .expect("input should be a valid time"),
-            Format::nanoseconds => DateTime::<Utc>::from_timestamp_nanos(in_time),
-        };
+        }).for_each(|ts| {
+            let in_time = match cli.format {
+                Format::seconds => {
+                    DateTime::<Utc>::from_timestamp(ts, 0).expect("input should be a valid time")
+                }
+                Format::milliseconds => DateTime::<Utc>::from_timestamp_millis(ts)
+                    .expect("input should be a valid time"),
+                Format::microseconds => DateTime::<Utc>::from_timestamp_micros(ts)
+                    .expect("input should be a valid time"),
+                Format::nanoseconds => DateTime::<Utc>::from_timestamp_nanos(ts),
+            };
 
-        println!("in_time: {:#?}", Times::new(in_time));
+            println!("({ts} {sym}): {time:#?}", sym = cli.format.symbol(), time = Times::new(in_time));
+        })
     }
 
     if cli.now {
-        println!("now: {:#?}", Times::new(chrono::offset::Utc::now()));
+        println!("(now): {:#?}", Times::new(chrono::offset::Utc::now()));
     }
 
     Ok(())
