@@ -35,19 +35,23 @@ struct Cli {
 #[allow(non_camel_case_types)]
 enum Format {
     #[default]
-    seconds,
-    milliseconds,
-    microseconds,
-    nanoseconds,
+    /// Seconds.
+    s,
+    /// Milliseconds.
+    ms,
+    /// Microseconds.
+    us,
+    /// Nanoseconds.
+    ns,
 }
 
 impl Format {
     fn symbol(&self) -> String {
         match self {
-            Format::seconds => "s".to_string(),
-            Format::milliseconds => "ms".to_string(),
-            Format::microseconds => "μs".to_string(),
-            Format::nanoseconds => "ns".to_string(),
+            Format::s => "s".to_string(),
+            Format::ms => "ms".to_string(),
+            Format::us => "μs".to_string(),
+            Format::ns => "ns".to_string(),
         }
     }
 }
@@ -104,13 +108,13 @@ fn main() -> Result<()> {
             })
             .for_each(|ts| {
                 let in_time = match cli.format {
-                    Format::seconds => DateTime::<Utc>::from_timestamp(ts, 0)
+                    Format::s => DateTime::<Utc>::from_timestamp(ts, 0)
                         .expect("input should be a valid time"),
-                    Format::milliseconds => DateTime::<Utc>::from_timestamp_millis(ts)
+                    Format::ms => DateTime::<Utc>::from_timestamp_millis(ts)
                         .expect("input should be a valid time"),
-                    Format::microseconds => DateTime::<Utc>::from_timestamp_micros(ts)
+                    Format::us => DateTime::<Utc>::from_timestamp_micros(ts)
                         .expect("input should be a valid time"),
-                    Format::nanoseconds => DateTime::<Utc>::from_timestamp_nanos(ts),
+                    Format::ns => DateTime::<Utc>::from_timestamp_nanos(ts),
                 };
 
                 println!(
